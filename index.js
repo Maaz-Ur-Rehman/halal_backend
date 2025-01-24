@@ -34,11 +34,7 @@ app.use("/api/ingrediants",ingrediantsRoutes)
 app.use('/api/products', productRoutes);
 app.use('/api/test',testRoutes)
 
-app.post("/api/login", (req, res) => {
-    const { email, password } = req.body;
-   console.log(email,password)
-   res.send("login")
-    });
+
 
 
 
