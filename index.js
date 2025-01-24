@@ -12,6 +12,7 @@ corsConfig = {
     credentials: true,
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
   };
+  app.options("", cors(corsConfig));
 app.use(cors(corsConfig));
 app.use((req, res, next) => {
     res.header("Cache-Control", "no-cache, no-store, must-revalidate");
