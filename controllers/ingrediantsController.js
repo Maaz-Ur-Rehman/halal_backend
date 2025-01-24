@@ -124,9 +124,9 @@ exports.getIngredientByEcodeAndName= async (req, res) => {
   
     // Check if the result is an empty array
     if (!result || result.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         message: "No matching ingredients found",
-        data: [],
+        // data: [],
       });
     }
   
