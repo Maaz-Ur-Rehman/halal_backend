@@ -7,7 +7,12 @@ const express = require("express");
 const app = express();
 
 const cors = require("cors");
-app.use(cors())
+corsConfig = {
+    origin: "*",
+    credentials: true,
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  };
+app.use(cors(corsConfig));
 app.use((req, res, next) => {
     res.header("Cache-Control", "no-cache, no-store, must-revalidate");
     res.header("Pragma", "no-cache");
