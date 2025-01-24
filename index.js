@@ -33,6 +33,12 @@ app.use("/api/user", userRoutes);
 app.use("/api/ingrediants",ingrediantsRoutes)
 app.use('/api/products', productRoutes);
 
+app.post("/api/login", (req, res) => {
+    const { email, password } = req.body;
+   console.log(email,password)
+   res.send("login")
+    });
+
 app.get('/', (req, res) => {
     res.send('Hello World!');
 });
