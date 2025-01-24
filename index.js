@@ -21,8 +21,13 @@ app.use(bodyParser.json());
 const { getConnectionFromPool } = require("./config/connection");
 
 getConnectionFromPool();
-app.get("/api/", (req, res) => {
-    res.send("Welcome to the chat bot backend");
+// app.get("/api/", (req, res) => {
+//     res.send("Welcome to the chat bot backend");
+// });
+
+app.get('/', (req, res) => {
+    // console.log("aaaaa");
+    res.send('Hello World!');
 });
 
 
