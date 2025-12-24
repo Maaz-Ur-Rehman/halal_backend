@@ -246,6 +246,126 @@ exports.getIngredientByEcodeAndAdditive = async (req, res) => {
   }
 };
 
+exports.searchIngredients = async (req, res) => {
+  try {
+    const {
+      ecode,
+      additive,
+      category,
+      subcategory,
+      status = [],
+      certifierName,
+      page = 1,
+      limit = 10
+    } = req.body;
+
+    const offset = (page - 1) * limit;
+    const tables = ["hbc_ingredients", "hbf_ingredients", "mashbooh_ingredients"];
+
+    const unionQueries = tables.map((table) => {
+      const qualifiedWhereClauses = [];
+      const qualifiedValues = [];
+
+      if (ecode) {
+        const normalizedEcode = ecode.startsWith("E-") ? ecode : `E-${ecode.replace(/^E-?/, "")}`;
+        qualifiedWhereClauses.push(`${table}.E_Number = ?`);
+        qualifiedValues.push(normalizedEcode);
+      }
+
+      if (additive) {
+        qualifiedWhereClauses.push(`${table}.Additive LIKE ?`);
+        qualifiedValues.push(`%${additive}%`);
+      }
+
+      if (category) {
+        qualifiedWhereClauses.push(`${table}.Category = ?`);
+        qualifiedValues.push(category);
+      }
+
+      if (subcategory) {
+        qualifiedWhereClauses.push(`${table}.Subcategory = ?`);
+        qualifiedValues.push(subcategory);
+      }
+
+      if (Array.isArray(status) && status.length > 0) {
+        const placeholders = status.map(() => "?").join(",");
+        qualifiedWhereClauses.push(`${table}.Status IN (${placeholders})`);
+        qualifiedValues.push(...status);
+      }
+
+      if (table === "hbc_ingredients") {
+        if (certifierName) {
+          qualifiedWhereClauses.push(`hbc_certifiers.Certifier_Name = ?`);
+          qualifiedValues.push(certifierName);
+        }
+
+        const hbcWhere = qualifiedWhereClauses.length > 0 ? `WHERE ${qualifiedWhereClauses.join(" AND ")}` : "";
+
+        return {
+          sql: `
+            SELECT ${table}.*, hbc_certifiers.Certifier_Name
+            FROM ${table}
+            LEFT JOIN hbc_certifier_mappings 
+              ON ${table}.E_Number = hbc_certifier_mappings.E_Number
+            LEFT JOIN hbc_certifiers 
+              ON hbc_certifier_mappings.Certifier_Number = hbc_certifiers.Certifier_Number
+            ${hbcWhere}
+          `,
+          values: qualifiedValues
+        };
+      }
+
+      const whereClause = qualifiedWhereClauses.length > 0 ? `WHERE ${qualifiedWhereClauses.join(" AND ")}` : "";
+
+      return {
+        sql: `
+          SELECT ${table}.*, NULL AS Certifier_Name
+          FROM ${table}
+          ${whereClause}
+        `,
+        values: qualifiedValues
+      };
+    });
+
+    const finalQuery = `
+      SELECT * FROM (
+        ${unionQueries.map((q) => q.sql).join(" UNION ALL ")}
+      ) AS combined
+      LIMIT ? OFFSET ?
+    `;
+
+    const countQuery = `
+      SELECT COUNT(*) AS total FROM (
+        ${unionQueries.map((q) => q.sql).join(" UNION ALL ")}
+      ) AS combined
+    `;
+
+    const repeatedValues = unionQueries.flatMap((q) => q.values);
+    const finalValues = [...repeatedValues, limit, offset];
+
+    const [ingredients] = await queryRunner(finalQuery, finalValues);
+    const [countResult] = await queryRunner(countQuery, repeatedValues);
+
+    return res.status(200).json({
+      
+      totalCount: countResult[0]?.total,
+      data: ingredients,
+    });
+  } catch (err) {
+    console.error("Error in searchIngredients:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong",
+      error: err.message
+    });
+  }
+};
+
+
+
+
+
+
 
 
 exports.getIngredientByAdditives = async (req, res) => {
@@ -397,3 +517,112 @@ exports.getAdditive = async (req, res) => {
       .json({ message: "Failed to update E-Codes", error: error.message });
   }
 };
+
+
+exports.getEcodeByStatus = async (req, res) => {
+  try {
+    const { status } = req.query;
+
+    
+
+    let tableName;
+    if (status === "halal") {
+      tableName = "hbf_ingredients";
+    } else if (status === "certified") {
+      tableName = "hbc_ingredients";
+    } else if (status === "mashbooh") {
+      tableName = "mashbooh_ingredients";
+    } else {
+      return res.status(400).json({ message: "Invalid status value" });
+    }
+
+    const query = `SELECT E_Number FROM ${tableName} WHERE Status = ?`;
+    const [results] = await queryRunner(query, [status]);
+
+     const eCodes = results.map(item => item.E_Number);
+
+    res.status(200).json(eCodes);
+
+    
+  } catch (error) {
+    res.status(500).json({ message: "Failed to get E-Codes", error: error.message });
+  }
+};
+
+exports.getCategoryByStatus=(req, res) => {
+  try {
+    const { status } = req.query;
+
+    let tableName;
+    if (status === "halal") {
+      tableName = "hbf_categories_table";
+    } else if (status === "certified") {
+      tableName = "hbc_categories_table";
+    } else if (status === "mashbooh") {
+      tableName = "mashbooh_categories_table";
+    } else {
+      return res.status(400).json({ message: "Invalid status value" });
+    }
+
+    const query = `SELECT category_name as Category FROM ${tableName}`;
+    queryRunner(query)
+      .then(([results]) => {
+        const categories = results.map(item => item.Category);
+        res.status(200).json(categories);
+      })
+      .catch(error => {
+        res.status(500).json({ message: "Failed to get categories", error: error.message });
+      });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to get categories", error: error.message });
+  }
+};
+
+
+exports.getSubCategoryByStatus = (req, res) => {
+  try {
+    const { status } = req.query;
+
+    let tableName;
+    if (status === "halal") {
+      tableName = "hbf_subcategories_table";
+    } else if (status === "certified") {
+      tableName = "hbc_subcategories_table";
+    } else if (status === "mashbooh") {
+      tableName = "mashbooh_subcategories_table";
+    } else {
+      return res.status(400).json({ message: "Invalid status value" });
+    }
+
+    const query = `SELECT sub_category_name as Subcategory FROM ${tableName}`;
+    queryRunner(query)
+      .then(([results]) => {
+        const subcategories = results.map(item => item.Subcategory);
+        res.status(200).json(subcategories);
+      })
+      .catch(error => {
+        res.status(500).json({ message: "Failed to get subcategories", error: error.message });
+      });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to get subcategories", error: error.message });
+  }
+}
+
+exports.getCertifiedByStatus = (req, res) => {
+  try {
+
+    
+
+    const query = `SELECT Certifier_Name as Certified FROM hbc_certifiers`;
+    queryRunner(query)
+      .then(([results]) => {
+        const certifiedList = results.map(item => item.Certified);
+        res.status(200).json(certifiedList);
+      })
+      .catch(error => {
+        res.status(500).json({ message: "Failed to get certified list", error: error.message });
+      });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to get certified list", error: error.message });
+  }
+}
